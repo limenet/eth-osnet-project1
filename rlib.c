@@ -766,7 +766,7 @@ listen_on (int dgram, struct sockaddr_storage *ss)
         return -1;
     }
     err = getnameinfo ((struct sockaddr *) ss, len, NULL, 0,
-                        portname, sizeof (portname), 
+                        portname, sizeof (portname),
                         (dgram ? NI_DGRAM : 0) | NI_NUMERICSERV);
     if (err) {
         fprintf (stderr, "%s\n", gai_strerror (err));
