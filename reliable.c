@@ -55,7 +55,7 @@ const struct config_common *cc)
     rel_list->prev = &r->next;
     rel_list = r;
 
-    printf("rel_create\n");
+    printf("->rel_create\n");
     /* Do any other initialization you need here */
 
     return r;
@@ -69,7 +69,7 @@ rel_destroy (rel_t *r)
     *r->prev = r->next;
     conn_destroy (r->c);
 
-    printf("rel_destroy\n");
+    printf("->rel_destroy\n");
 
     /* Free any other allocated memory here */
 }
@@ -79,7 +79,7 @@ void
 rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
 {
     //char buf[conn_bufspace(r->c)];
-    printf("rel_recvpkt\n");
+    printf("->rel_recvpkt\n");
     //conn_output(r->c, buf, pkt->len);
 }
 
@@ -87,32 +87,36 @@ rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
 void
 rel_read (rel_t *s)
 {
-    packet_t *p;
+    printf("->rel_read\n");
+    packet_t pkt;
     int input;
     char buf[conn_bufspace(s->c)];
 
     input = conn_input(s->c, buf, conn_bufspace(s->c));
 
-    if(input < 1){
+    if(input == 1)
         return;
-    }
 
-    //p->len = input;
-    //p->data = buf;
+    if(input == -1)
+        rel_destroy(s);
 
-    conn_sendpkt(s->c,p,conn_bufspace(s->c));
+    pkt.len = input;
+    //pkt.data = buf;
+    //printf("%d\t%s\n", input, buf);
+
+    conn_sendpkt(s->c, &pkt, input);
 }
 
 void
 rel_output (rel_t *r)
 {
-    printf("rel_output\n");
+    printf("->rel_output\n");
 }
 
 void
 rel_timer ()
 {
-    //printf("rel_timer\n");
+    //printf("->rel_timer\n");
     /* Retransmit any packets that need to be retransmitted */
 
 }
