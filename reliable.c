@@ -78,9 +78,9 @@ rel_destroy (rel_t *r)
 void
 rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
 {
-    //char buf[conn_bufspace(r->c)];
+    char buf[500];
     printf("->rel_recvpkt\n");
-    //conn_output(r->c, buf, pkt->len);
+    conn_output(r->c, buf, pkt->len);
 }
 
 
@@ -90,7 +90,7 @@ rel_read (rel_t *s)
     printf("->rel_read\n");
     packet_t pkt;
     int input;
-    char buf[conn_bufspace(s->c)];
+    char buf[500];
 
     input = conn_input(s->c, buf, conn_bufspace(s->c));
 
@@ -101,7 +101,7 @@ rel_read (rel_t *s)
         rel_destroy(s);
 
     pkt.len = input;
-    //pkt.data = buf;
+    strncpy(pkt.data, buf, 500);
     //printf("%d\t%s\n", input, buf);
 
     conn_sendpkt(s->c, &pkt, input);
