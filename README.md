@@ -3,7 +3,7 @@ Repo for Project 1 of the Operating Systems & Networks taught at ETH Zürich in 
 
 ## Terminal
 
-```
+```bash
 # terminal 1
 linus@ubuntu-VirtualBox:~/Desktop/eth-osnet-project1$ ./reliable 6667 -w 5 -d localhost:6666
 # terminal 2
