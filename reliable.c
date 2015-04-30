@@ -60,7 +60,7 @@ const struct config_common *cc)
     printf("->rel_create\n");
     /* Do any other initialization you need here */
 
-    r->current_seq_no = 0x0;
+    r->current_seq_no = 0;
 
     return r;
 }
