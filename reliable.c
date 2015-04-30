@@ -22,6 +22,8 @@ struct reliable_state {
 
     /* Add your own data fields below this */
 
+    uint32_t current_seq_no;
+
 };
 rel_t *rel_list;
 
@@ -58,6 +60,8 @@ const struct config_common *cc)
     printf("->rel_create\n");
     /* Do any other initialization you need here */
 
+    r->current_seq_no = 0x0;
+
     return r;
 }
 
@@ -78,8 +82,15 @@ rel_destroy (rel_t *r)
 void
 rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
 {
-    char buf[500];
     printf("->rel_recvpkt\n");
+    //char buf = malloc(500);
+    char buf[500];
+    if (pkt->len == 12) {
+        printf("ACK pkt received\n");
+    } else {
+        printf("normal pkt received\n");
+
+    }
     conn_output(r->c, buf, pkt->len);
 }
 
@@ -100,11 +111,13 @@ rel_read (rel_t *s)
     if(input == -1)
         rel_destroy(s);
 
+    pkt.seqno = s->current_seq_no;
     pkt.len = input;
     strncpy(pkt.data, buf, 500);
     //printf("%d\t%s\n", input, buf);
 
     conn_sendpkt(s->c, &pkt, input);
+    ++s->current_seq_no;
 }
 
 void
