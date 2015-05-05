@@ -85,13 +85,17 @@ rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
     printf("->rel_recvpkt\n");
     //char buf = malloc(500);
     char buf[500];
+    printf("packet Length: %d", (int)sizeof(*pkt));
     if (pkt->len == 12) {
         printf("ACK pkt received\n");
     } else {
         printf("normal pkt received\n");
 
     }
-    conn_output(r->c, buf, pkt->len);
+    // conn_output(r->c, buf, pkt->len);
+    // Don't trust pkt->len.
+    // For now fixed to 512 bytes of length, to avoid buffer overflows.
+    conn_output(r->c, buf, 512);
 }
 
 
