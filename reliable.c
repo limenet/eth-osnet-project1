@@ -92,8 +92,8 @@ rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
         printf("normal pkt received\n");
 
     }
-    // conn_output(r->c, buf, pkt->len);
     // Don't trust pkt->len.
+    // conn_output(r->c, buf, pkt->len);
     // For now fixed to 512 bytes of length, to avoid buffer overflows.
     conn_output(r->c, buf, 512);
 }
@@ -115,9 +115,9 @@ rel_read (rel_t *s)
     if(input == -1)
         rel_destroy(s);
 
-    pkt.seqno = s->current_seq_no;
-    pkt.len = input;
-    strncpy(pkt.data, buf, 500);
+    pkt.seqno = htonl(s->current_seq_no); // need to be in network order
+    pkt.len = htonl(input); // need to be in network order
+    strncpy(pkt.data, buf, input); //input used to be 500
     //printf("%d\t%s\n", input, buf);
 
     conn_sendpkt(s->c, &pkt, input);
