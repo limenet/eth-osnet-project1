@@ -85,7 +85,9 @@ rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
     printf("->rel_recvpkt\n");
     //char buf = malloc(500);
     char buf[500];
-    printf("packet Length: %d", (int)sizeof(*pkt));
+    int pkt_length = ntohs(pkt->len);
+    printf("packet Length: %d\n", (int)sizeof(*pkt));
+    printf("reported packet Length: %d\n", pkt_length);
     if (pkt->len == 12) {
         printf("ACK pkt received\n");
     } else {
@@ -95,7 +97,9 @@ rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
     // Don't trust pkt->len.
     // conn_output(r->c, buf, pkt->len);
     // For now fixed to 512 bytes of length, to avoid buffer overflows.
-    conn_output(r->c, buf, 512);
+    printf("----\npacket_data\n%s",pkt->data);
+    //conn_output(r->c, buf, 512);
+    conn_output(r->c, pkt->data, 512);
 }
 
 
@@ -109,16 +113,17 @@ rel_read (rel_t *s)
 
     input = conn_input(s->c, buf, conn_bufspace(s->c));
 
-    if(input == 1)
+    if(input == 1 || input == 0) // no input
         return;
 
     if(input == -1)
         rel_destroy(s);
 
-    pkt.seqno = htonl(s->current_seq_no); // need to be in network order
-    pkt.len = htonl(input); // need to be in network order
+    pkt.seqno = htons(s->current_seq_no); // need to be in network order
+    pkt.len = htons(input); // need to be in network order
     strncpy(pkt.data, buf, input); //input used to be 500
     //printf("%d\t%s\n", input, buf);
+    printf("input: %d\n", input);
 
     conn_sendpkt(s->c, &pkt, input);
     ++s->current_seq_no;
