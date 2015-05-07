@@ -25,7 +25,9 @@ struct reliable_state
 
 	uint32_t current_seq_no;
 	uint32_t ackno;
-	uint32_t window_size;
+	uint32_t data_buffer_size;
+	uint32_t window;
+	packet_t **packages;
 
 };
 rel_t *rel_list;
@@ -69,8 +71,9 @@ rel_create (conn_t *c, const struct sockaddr_storage *ss,
 
 	r->current_seq_no = 1;
 	r->ackno = 1;
-	r->window_size = cc->window;
-
+	r->window = cc->window;
+	r->data_buffer_size = (r->window)*500;
+	r->packages = malloc(cc->window);
 	return r;
 }
 
@@ -81,10 +84,17 @@ rel_destroy (rel_t *r)
 		r->next->prev = r->prev;
 	*r->prev = r->next;
 	conn_destroy (r->c);
-
+	
 	printf("->rel_destroy\n");
 
 	/* Free any other allocated memory here */
+	int i = 0;
+	while(i<r->window)
+	{
+		free(r->packages[i]);
+		i++;
+	}
+	free(r->packages);
 }
 
 
@@ -120,7 +130,7 @@ rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
 		
 		// We need to subtract 12 due to the packet overhead.
 		printf("Normal packet received.\n");
-		char buf[r->window_size];
+		char buf[r->data_buffer_size];
 		strncpy(buf, pkt->data, pkt_length);
 		conn_output(r->c, buf, pkt_length );
 
@@ -138,7 +148,7 @@ rel_read (rel_t *s)
 {
 	printf("->rel_read\n");
 	int input;
-	char buf[s->window_size];
+	char buf[s->data_buffer_size];
 
 	input = conn_input(s->c, buf, conn_bufspace(s->c));
 
@@ -168,14 +178,25 @@ rel_read (rel_t *s)
 		{
 			build_packet(pkt, s, 512);
 			strncpy(pkt->data, &buf[offset], 500);
-			conn_sendpkt(s->c, pkt, 512);
+			int sent = 0;
+			int i=0;
+			while(i<s->window)
+			{
+				if(!(s->packages[i]))
+				{
+					sent++;
+					s->packages[i]=pkt;
+					conn_sendpkt(s->c, pkt, 512);
+					break;
+				}
+				i++;
+			}
 			offset += 500;
 			input -= 500;
 		}
 
 	}
 	// Unsure if needed:
-	free(pkt);
 }
 
 void

@@ -14,7 +14,7 @@
 LIBRT = `test -f /usr/lib/librt.a && printf -- -lrt`
 
 CC = gcc
-#CFLAGS = -g -Wall -Werror $(DMALLOC_CFLAGS)
+#CFLAGS = -g -Wall -Werror $(DMALLOC_CFLAGS) 
 CFLAGS = -g -Wall $(DMALLOC_CFLAGS)
 LIBS = $(DMALLOC_LIBS)
 
