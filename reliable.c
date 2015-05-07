@@ -11,7 +11,6 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <netinet/in.h>
-#include <stdbool.h>
 
 #include "rlib.h"
 
@@ -93,19 +92,36 @@ void
 rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
 {
 	printf("->rel_recvpkt\n");
-	char buf[r->window_size];
 	int pkt_length = ntohs(pkt->len);
-	strncpy(buf, pkt->data, pkt_length);
+	int ackno = ntohs(pkt->ackno);
+	uint32_t seqno = ntohs(pkt->seqno);
+
 	if (pkt_length == 8)
 	{
 		// Do nothing for now.
 		printf("ACK packet received.\n");
-		return;
+		if(ackno == r->current_seq_no)
+		{
+			printf("Finally ackno correct");
+		}
+		else
+		{
+			printf("Wrong again");
+		}
 	}
 	else
 	{
+		if(!(seqno==r->ackno))
+		{
+			printf("Don't want this specific package!");
+			return;
+		}
+		(r->ackno)++;
+		
 		// We need to subtract 12 due to the packet overhead.
 		printf("Normal packet received.\n");
+		char buf[r->window_size];
+		strncpy(buf, pkt->data, pkt_length);
 		conn_output(r->c, buf, pkt_length );
 
 		packet_t *pkt;
