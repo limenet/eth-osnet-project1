@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <netinet/in.h>
+#include <stdbool.h>
 
 #include "rlib.h"
 
@@ -24,10 +25,13 @@ struct reliable_state
 	/* Add your own data fields below this */
 
 	uint32_t current_seq_no;
+	uint32_t ackno;
 	uint32_t window_size;
 
 };
 rel_t *rel_list;
+
+void build_packet(packet_t *pkt, rel_t *s, int length, bool ack_packet);
 
 
 
@@ -64,7 +68,8 @@ rel_create (conn_t *c, const struct sockaddr_storage *ss,
 	printf("->rel_create\n");
 	/* Do any other initialization you need here */
 
-	r->current_seq_no = 0;
+	r->current_seq_no = 1;
+	r->ackno = 1;
 	r->window_size = cc->window;
 
 	return r;
@@ -106,7 +111,6 @@ rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
 	}
 }
 
-
 void
 rel_read (rel_t *s)
 {
@@ -129,27 +133,23 @@ rel_read (rel_t *s)
 	int offset = 0;
 	while (input > 1)
 	{
-		// seqno needs to be in network order.
-		pkt->seqno = htons(s->current_seq_no);
 
 		// Fit into one packet.
 		if (input < 500)
 		{
-			// len needs to be in network order.
-			pkt->len = htons(input + 12);
+			build_packet(pkt, s, input + 12, false);
 			strncpy(pkt->data, &buf[offset], input);
 			conn_sendpkt(s->c, pkt, input + 12);
 			input = 0;
 		}
 		else
 		{
-			pkt->len = htons(512); // need to be in network order
+			build_packet(pkt, s, 512, false);
 			strncpy(pkt->data, &buf[offset], 500);
 			conn_sendpkt(s->c, pkt, 512);
 			offset += 500;
 			input -= 500;
 		}
-		++s->current_seq_no;
 
 	}
 	// Unsure if needed:
@@ -162,6 +162,21 @@ rel_output (rel_t *r)
 	printf("->rel_output\n");
 }
 
+void
+build_packet(packet_t *pkt, rel_t *s, int length, bool ack_packet)
+{
+	// len and seqno need to be in network order.
+	pkt->len = htons(length);
+	if (!ack_packet)
+	{
+		pkt->seqno = htons(s->current_seq_no);
+		++s->current_seq_no;
+	}
+	pkt->ackno = htons(s->ackno);
+	pkt->cksum = 0;
+	cksum(pkt, pkt->cksum);
+	return;
+}
 void
 rel_timer ()
 {
