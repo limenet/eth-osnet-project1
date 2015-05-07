@@ -27,7 +27,8 @@ struct reliable_state
 	uint32_t ackno;
 	uint32_t data_buffer_size;
 	uint32_t window;
-	packet_t **packages;
+	packet_t **outgoing_package_buffer;
+	packet_t **incoming_package_buffer;
 
 };
 rel_t *rel_list;
@@ -73,7 +74,8 @@ rel_create (conn_t *c, const struct sockaddr_storage *ss,
 	r->ackno = 1;
 	r->window = cc->window;
 	r->data_buffer_size = (r->window)*500;
-	r->packages = malloc(cc->window);
+	r->outgoing_package_buffer = malloc(cc->window);
+	r->incoming_package_buffer = malloc(cc->window);
 	return r;
 }
 
@@ -91,10 +93,17 @@ rel_destroy (rel_t *r)
 	int i = 0;
 	while(i<r->window)
 	{
-		free(r->packages[i]);
+		free(r->outgoing_package_buffer[i]);
 		i++;
 	}
-	free(r->packages);
+	free(r->outgoing_package_buffer);
+	i = 0;
+	while(i<r->window)
+	{
+		free(r->incoming_package_buffer[i]);
+		i++;
+	}
+	free(r->incoming_package_buffer);
 }
 
 
@@ -182,10 +191,10 @@ rel_read (rel_t *s)
 			int i=0;
 			while(i<s->window)
 			{
-				if(!(s->packages[i]))
+				if(!(s->outgoing_package_buffer[i]))
 				{
 					sent++;
-					s->packages[i]=pkt;
+					s->outgoing_package_buffer[i]=pkt;
 					conn_sendpkt(s->c, pkt, 512);
 					break;
 				}
