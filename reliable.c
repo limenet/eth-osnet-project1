@@ -14,15 +14,17 @@
 
 #include "rlib.h"
 
-struct reliable_state {
-    rel_t *next;			/* Linked list for traversing all connections */
-    rel_t **prev;
+struct reliable_state
+{
+	rel_t *next;            /* Linked list for traversing all connections */
+	rel_t **prev;
 
-    conn_t *c;			/* This is the connection object */
+	conn_t *c;          /* This is the connection object */
 
-    /* Add your own data fields below this */
+	/* Add your own data fields below this */
 
-    uint32_t current_seq_no;
+	uint32_t current_seq_no;
+	uint32_t window_size;
 
 };
 rel_t *rel_list;
@@ -35,110 +37,135 @@ rel_t *rel_list;
 * ss is always NULL */
 rel_t *
 rel_create (conn_t *c, const struct sockaddr_storage *ss,
-const struct config_common *cc)
+            const struct config_common *cc)
 {
-    rel_t *r;
+	rel_t *r;
 
-    r = xmalloc (sizeof (*r));
-    memset (r, 0, sizeof (*r));
+	r = xmalloc (sizeof (*r));
+	memset (r, 0, sizeof (*r));
 
-    if (!c) {
-        c = conn_create (r, ss);
-        if (!c) {
-            free (r);
-            return NULL;
-        }
-    }
+	if (!c)
+	{
+		c = conn_create (r, ss);
+		if (!c)
+		{
+			free (r);
+			return NULL;
+		}
+	}
 
-    r->c = c;
-    r->next = rel_list;
-    r->prev = &rel_list;
-    if (rel_list)
-    rel_list->prev = &r->next;
-    rel_list = r;
+	r->c = c;
+	r->next = rel_list;
+	r->prev = &rel_list;
+	if (rel_list)
+		rel_list->prev = &r->next;
+	rel_list = r;
 
-    printf("->rel_create\n");
-    /* Do any other initialization you need here */
+	printf("->rel_create\n");
+	/* Do any other initialization you need here */
 
-    r->current_seq_no = 0;
+	r->current_seq_no = 0;
+	r->window_size = cc->window;
 
-    return r;
+	return r;
 }
 
 void
 rel_destroy (rel_t *r)
 {
-    if (r->next)
-        r->next->prev = r->prev;
-    *r->prev = r->next;
-    conn_destroy (r->c);
+	if (r->next)
+		r->next->prev = r->prev;
+	*r->prev = r->next;
+	conn_destroy (r->c);
 
-    printf("->rel_destroy\n");
+	printf("->rel_destroy\n");
 
-    /* Free any other allocated memory here */
+	/* Free any other allocated memory here */
 }
 
 
 void
 rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
 {
-    printf("->rel_recvpkt\n");
-    //char buf = malloc(500);
-    char buf[500];
-    int pkt_length = ntohs(pkt->len);
-    printf("packet Length: %d\n", (int)sizeof(*pkt));
-    printf("reported packet Length: %d\n", pkt_length);
-    if (pkt->len == 12) {
-        printf("ACK pkt received\n");
-    } else {
-        printf("normal pkt received\n");
+	printf("->rel_recvpkt\n");
+	char buf[r->window_size];
+	int pkt_length = ntohs(pkt->len);
+	strncpy(buf, pkt->data, pkt_length);
+	if (pkt_length == 12)
+	{
+		// Do nothing for now.
+		printf("ACK packet received.\n");
+		return;
+	}
+	else
+	{
+		// We need to subtract 12 due to the packet overhead.
+		printf("Normal packet received.\n");
+		conn_output(r->c, buf, pkt_length - 12);
 
-    }
-    // Don't trust pkt->len.
-    // conn_output(r->c, buf, pkt->len);
-    // For now fixed to 512 bytes of length, to avoid buffer overflows.
-    printf("----\npacket_data\n%s",pkt->data);
-    //conn_output(r->c, buf, 512);
-    conn_output(r->c, pkt->data, 512);
+	}
 }
 
 
 void
 rel_read (rel_t *s)
 {
-    printf("->rel_read\n");
-    packet_t pkt;
-    int input;
-    char buf[500];
+	printf("->rel_read\n");
+	int input;
+	char buf[s->window_size];
 
-    input = conn_input(s->c, buf, conn_bufspace(s->c));
+	input = conn_input(s->c, buf, conn_bufspace(s->c));
 
-    if(input == 1 || input == 0) // no input
-        return;
+	if (input == 1 || input == 0) // no input
+		return;
+	if (input == -1)
+		rel_destroy(s);
 
-    if(input == -1)
-        rel_destroy(s);
+	packet_t *pkt;
+	pkt = malloc(sizeof(*pkt));
 
-    pkt.seqno = htons(s->current_seq_no); // need to be in network order
-    pkt.len = htons(input); // need to be in network order
-    strncpy(pkt.data, buf, input); //input used to be 500
-    //printf("%d\t%s\n", input, buf);
-    printf("input: %d\n", input);
+	// Since we need to be able to send more data than packet size,
+	// we need to split them into multiple packets.
+	int offset = 0;
+	while (input > 1)
+	{
+		// seqno needs to be in network order.
+		pkt->seqno = htons(s->current_seq_no);
 
-    conn_sendpkt(s->c, &pkt, input);
-    ++s->current_seq_no;
+		// Fit into one packet.
+		if (input < 500)
+		{
+			// len needs to be in network order.
+			pkt->len = htons(input + 12);
+			strncpy(pkt->data, &buf[offset], input);
+			conn_sendpkt(s->c, pkt, input + 12);
+			input = 0;
+		}
+		else
+		{
+			pkt->len = htons(512); // need to be in network order
+			strncpy(pkt->data, &buf[offset], 500);
+			conn_sendpkt(s->c, pkt, 512);
+			offset += 500;
+			input -= 500;
+		}
+		++s->current_seq_no;
+
+	}
+	// Unsure if needed:
+	free(pkt);
 }
 
 void
 rel_output (rel_t *r)
 {
-    printf("->rel_output\n");
+	printf("->rel_output\n");
 }
 
 void
 rel_timer ()
 {
-    //printf("->rel_timer\n");
-    /* Retransmit any packets that need to be retransmitted */
+	//printf("->rel_timer\n");
+	/* Retransmit any packets that need to be retransmitted */
 
 }
