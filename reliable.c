@@ -31,7 +31,7 @@ struct reliable_state
 };
 rel_t *rel_list;
 
-void build_packet(packet_t *pkt, rel_t *s, int length, bool ack_packet);
+void build_packet(packet_t *pkt, rel_t *s, int length);
 
 
 
@@ -96,7 +96,7 @@ rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
 	char buf[r->window_size];
 	int pkt_length = ntohs(pkt->len);
 	strncpy(buf, pkt->data, pkt_length);
-	if (pkt_length == 12)
+	if (pkt_length == 8)
 	{
 		// Do nothing for now.
 		printf("ACK packet received.\n");
@@ -106,7 +106,13 @@ rel_recvpkt (rel_t *r, packet_t *pkt, size_t n)
 	{
 		// We need to subtract 12 due to the packet overhead.
 		printf("Normal packet received.\n");
-		conn_output(r->c, buf, pkt_length - 12);
+		conn_output(r->c, buf, pkt_length );
+
+		packet_t *pkt;
+		pkt = malloc(sizeof(*pkt));
+		build_packet(pkt, r, 8);
+		conn_sendpkt(r->c, pkt, 8);
+		free(pkt);
 
 	}
 }
@@ -137,14 +143,14 @@ rel_read (rel_t *s)
 		// Fit into one packet.
 		if (input < 500)
 		{
-			build_packet(pkt, s, input + 12, false);
+			build_packet(pkt, s, input + 12);
 			strncpy(pkt->data, &buf[offset], input);
 			conn_sendpkt(s->c, pkt, input + 12);
 			input = 0;
 		}
 		else
 		{
-			build_packet(pkt, s, 512, false);
+			build_packet(pkt, s, 512);
 			strncpy(pkt->data, &buf[offset], 500);
 			conn_sendpkt(s->c, pkt, 512);
 			offset += 500;
@@ -163,14 +169,17 @@ rel_output (rel_t *r)
 }
 
 void
-build_packet(packet_t *pkt, rel_t *s, int length, bool ack_packet)
+build_packet(packet_t *pkt, rel_t *s, int length)
 {
 	// len and seqno need to be in network order.
 	pkt->len = htons(length);
-	if (!ack_packet)
+	if (length)
 	{
 		pkt->seqno = htons(s->current_seq_no);
 		++s->current_seq_no;
+	}
+	else
+	{
 	}
 	pkt->ackno = htons(s->ackno);
 	pkt->cksum = 0;
