@@ -21,6 +21,7 @@
 *.dylib
 
 # Executables
+reliable
 *.exe
 *.out
 *.app
